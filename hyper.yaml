@@ -1,0 +1,42 @@
+home: "data"
+cora:
+    words:
+        c: 1.0
+        score_train:  0.9420 
+        score_test:  0.7310
+    feats: 
+        truncate: 512
+        c: 80
+        score_train:  0.9098 
+        score_test:  0.7810
+    vecs:
+        dimension: 200
+        c: 0.2
+        score_train:  0.8864 
+        score_test:  0.8370
+citeseer:
+    words:
+        c: 0.1
+        score_train: 0.9420
+        score_test: 0.7310
+    feats: 
+        truncate: 512
+        c: 25
+        score_train:  0.7189 
+        score_test:  0.6200
+    vecs:
+        dimension: 100
+        c: 0.1
+        score_train: 0.7029
+        score_test: 0.6130
+facebook:
+    words:
+        c: 1.0
+        score_train:  0.9420 
+        score_test:  0.7310
+    feats: 
+        truncate: 512
+        auc: 0.5137
+    vecs:
+        dimension: 200
+        auc: 0.9792
