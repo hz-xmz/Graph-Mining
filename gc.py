@@ -142,7 +142,7 @@ def main(args):
         graph = nx.from_edgelist(edges)
         nx.set_node_attributes(graph, node2label, 'label')
         nodes2vecs = Node2Vec(graph, dimensions=args.dimvec, walk_length=args.walk_length, num_walks=args.num_walks, workers=args.workers)
-        model = nodes2vecs.fit(window=5, min_count=1, batch_words=4)
+        model = nodes2vecs.fit(window=args.windows, min_count=args.min_count, batch_words=args.batch_words)
         EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}.vec')
         model.wv.save(EMBEDDING_FILENAME)
         EMBEDDING_MODEL_FILENAME = os.path.join(args.data_home, args.dataset, f'node2vec_{args.dimvec}.model')
@@ -179,9 +179,12 @@ if __name__ == "__main__":
     parser.add_argument("--truncate", type=int, default=50)
     parser.add_argument("--iter_max", type=int, default=500)
     parser.add_argument("--dimvec", type=int, default=128)
-    parser.add_argument("--walk_length", type=int, default=30)
-    parser.add_argument("--num_walks", type=int, default=100)
+    parser.add_argument("--walk_length", type=int, default=80)
+    parser.add_argument("--num_walks", type=int, default=10)
     parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--windows", type=int, default=10)
+    parser.add_argument("--batch_words", type=int, default=10)
+    parser.add_argument("--min_count", type=int, default=1)
     parser.add_argument('-cl','--c_list', nargs='+', help='<Required> Set flag', type=float, default=[0.1, 1, 5, 10, 50, 100])
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--path_save", type=str, default='models')
@@ -189,6 +192,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(f"args: {args}")
     main(args)
-
-
-

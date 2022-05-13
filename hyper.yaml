@@ -10,10 +10,10 @@ cora:
         score_train:  0.9098 
         score_test:  0.7810
     vecs:
-        dimension: 200
-        c: 0.2
-        score_train:  0.8864 
-        score_test:  0.8370
+        dimension: 128
+        c: 0.5
+        score_train:  0.8835 
+        score_test:  0.8200
 citeseer:
     words:
         c: 0.1
@@ -27,16 +27,17 @@ citeseer:
     vecs:
         dimension: 100
         c: 0.1
-        score_train: 0.7029
-        score_test: 0.6130
+        score_train:  0.6708
+        score_test:  0.6080
+        
 facebook:
     words:
         c: 1.0
         score_train:  0.9420 
         score_test:  0.7310
-    feats: 
+    jaccard: 
         truncate: 512
-        auc:   0.5137
+        auc:   0.9703
         n=5:   0.0891
         n=10:  0.1777
         n=15:  0.2402
@@ -47,7 +48,7 @@ facebook:
         n=40:  0.4281
     vecs:
         dimension: 200
-        auc:   0.9792
+        auc:   0.9756
         n=5:   0.4038
         n=10:  0.5909
         n=15:  0.6495
@@ -56,3 +57,25 @@ facebook:
         n=30:  0.6994
         n=35:  0.7056
         n=40:  0.7108
+        
+email:
+    spectral:
+        n=5:   0.0891
+        n=10:  0.1777
+        n=15:  0.2402
+        n=20:  0.2854
+        n=25:  0.3477
+        n=30:  0.3745
+        n=35:  0.3768
+        n=40:  0.4281 
+    
+    vecs:
+        n=5, nmi:  0.3965
+        n=10, nmi:  0.6085
+        n=15, nmi:  0.6356
+        n=20, nmi:  0.6772
+        n=25, nmi:  0.6890
+        n=30, nmi:  0.7146
+        n=35, nmi:  0.7067
+        n=40, nmi:  0.6978
+        

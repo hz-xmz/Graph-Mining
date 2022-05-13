@@ -172,6 +172,30 @@ def main(args):
         from sklearn.metrics import roc_auc_score
         auc = roc_auc_score(label_true+label_false, scores_p+scores_n)
         print(f"auc: {auc: .4f}")
+        
+    if args.jaccard:
+        graph = nx.from_edgelist(edges_train)
+        edges_test_exist = []
+        edges_nega_exist = []
+        for edge in edges_test:
+            if graph.has_node(edge[0]) and graph.has_node(edge[1]):
+                edges_test_exist.append(edge)
+        print(f"len(edges_test): {len(edges_test)}, len(edges_test_exist): {len(edges_test_exist)}")
+        for edge in edges_nega:
+            if graph.has_node(edge[0]) and graph.has_node(edge[1]):
+                edges_nega_exist.append(edge)
+        print(f"len(edges_nega): {len(edges_nega)}, len(edges_nega_exist): {len(edges_nega_exist)}")
+        jaccard_p = nx.jaccard_coefficient(graph, edges_test_exist)
+        jaccard_n = nx.jaccard_coefficient(graph, edges_nega_exist)
+        scores_p = [p for u, v, p in jaccard_p]
+        scores_n = [p for u, v, p in jaccard_n]
+        print(f"len(scores_p): {len(scores_p)}, len(scores_n): {len(scores_n)}")
+        label_true = [1 for _ in range(len(scores_p))]
+        label_false = [0 for _ in range(len(scores_n))]
+        from sklearn.metrics import roc_auc_score
+        auc = roc_auc_score(label_true+label_false, scores_p+scores_n)
+        print(f"auc: {auc: .4f}")
+        
     return
 
 
@@ -186,15 +210,19 @@ if __name__ == "__main__":
     parser.add_argument("--words", action="store_true")
     parser.add_argument("--feats", action="store_true")
     parser.add_argument("--vecs", action="store_true")
+    parser.add_argument("--jaccard", action="store_true")
     parser.add_argument("--count", action="store_true")
     parser.add_argument("--extract", action="store_true")
     parser.add_argument("--node2vec", action="store_true")
     parser.add_argument("--truncate", type=int, default=1024)
     parser.add_argument("--iter_max", type=int, default=500)
-    parser.add_argument("--dimvec", type=int, default=200)
-    parser.add_argument("--walk_length", type=int, default=30)
-    parser.add_argument("--num_walks", type=int, default=100)
+    parser.add_argument("--dimvec", type=int, default=128)
+    parser.add_argument("--walk_length", type=int, default=80)
+    parser.add_argument("--num_walks", type=int, default=10)
     parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--windows", type=int, default=10)
+    parser.add_argument("--batch_words", type=int, default=10)
+    parser.add_argument("--min_count", type=int, default=1)
     parser.add_argument('-cl','--c_list', nargs='+', help='<Required> Set flag', type=float, default=[0.1, 1, 5, 10, 50, 100])
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--path_save", type=str, default='models')
