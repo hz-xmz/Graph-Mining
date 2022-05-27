@@ -14,6 +14,22 @@ cora:
         c: 0.5
         score_train:  0.8835 
         score_test:  0.8200
+    vecs_feats:
+        c: 1.0
+        score_train:  0.9052
+        score_test:  0.8320
+     vecs_feats_2:
+        c: 1.0
+        score_train:  0.9268
+        score_test:  0.8450
+     vecs_feats_words:
+        c: 1.0
+        score_train: 0.9561
+        score_test: 0.8580
+      vecs_feats_words_2:
+        c: 0.1
+        score_train:  0.9936
+        score_test:  0.8590
 citeseer:
     words:
         c: 0.1
@@ -29,11 +45,27 @@ citeseer:
         c: 0.1
         score_train:  0.6708
         score_test:  0.6080
+    vecs_feats:
+        c: 10
+        score_train: 0.7608
+        score_test: 0.6230 
+    vecs_feats_2:
+        c: 1.0
+        score_train: 0.7552
+        score_test: 0.6380 
+    vecs_feats_words:
+        c: 10
+        score_train: 0.7608
+        score_test: 0.7340
+    vecs_feats_words_2:
+        c: 50
+        score_train:  0.9632
+        score_test:  0.7330
         
 facebook:
     words:
         c: 1.0
-        score_train:  0.9420 
+        score_train:  0.9550 
         score_test:  0.7310
     jaccard: 
         truncate: 512
