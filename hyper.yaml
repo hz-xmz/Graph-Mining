@@ -2,8 +2,8 @@ home: "data"
 cora:
     words:
         c: 1.0
-        score_train:  0.9420 
-        score_test:  0.7310
+        score_train:  0.9889 
+        score_test:  0.7610
     feats: 
         truncate: 512
         c: 80
