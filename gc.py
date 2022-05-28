@@ -148,6 +148,55 @@ def main(args):
         EMBEDDING_MODEL_FILENAME = os.path.join(args.data_home, args.dataset, f'node2vec_{args.dimvec}.model')
         model.save(EMBEDDING_MODEL_FILENAME)
         
+    if args.node2wvec:
+        graph = nx.from_edgelist(edges)
+        centrality = nx.eigenvector_centrality(graph)
+        weighted_edges_list = []
+        for e in graph.edges:
+            # d = min()
+            # weighted_edges_list.append([e[1], e[0], 1+2*centrality[e[0]]])
+            # weighted_edges_list.append([e[0], e[1], 1+2*centrality[e[1]]])
+            weighted_edges_list.append([e[1], e[0], min(graph.degree[e[0]], args.dmax)])
+            weighted_edges_list.append([e[0], e[1], min(graph.degree[e[1]], args.dmax)])
+        print(f'len(weighted_edges_list): {len(weighted_edges_list)}')
+        print('weighted_edges_list: ', weighted_edges_list[:10])
+        DG = nx.DiGraph()
+        DG.add_weighted_edges_from(weighted_edges_list)
+        print('DG weights 0: ', DG['0'])
+        print('DG weights 1: ', DG['1'])
+        nodes2vecs = Node2Vec(DG, dimensions=args.dimvec, walk_length=args.walk_length, num_walks=args.num_walks, workers=args.workers)
+        model = nodes2vecs.fit(window=args.windows, min_count=args.min_count, batch_words=args.batch_words)
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_w{args.dmax}.vec')
+        model.wv.save(EMBEDDING_FILENAME)
+        EMBEDDING_MODEL_FILENAME = os.path.join(args.data_home, args.dataset, f'node2vec_{args.dimvec}_w{args.dmax}.model')
+        model.save(EMBEDDING_MODEL_FILENAME)
+        
+    if args.node2cvec:
+        graph = nx.from_edgelist(edges)
+        centrality = nx.eigenvector_centrality(graph)
+        jc = nx.jaccard_coefficient(graph, edges)
+        for u, v, p in jc:
+            graph[u][v]['weight'] = 1 + p*args.dmax
+        # weighted_edges_list = []
+        # for e in graph.edges:
+        #     weighted_edges_list.append([e[1], e[0], 1+2*centrality[e[0]]])
+        #     weighted_edges_list.append([e[0], e[1], 1+2*centrality[e[1]]])
+        #     # weighted_edges_list.append([e[1], e[0], min(graph.degree[e[0]], args.dmax)])
+        #     # weighted_edges_list.append([e[0], e[1], min(graph.degree[e[1]], args.dmax)])
+        # print(f'len(weighted_edges_list): {len(weighted_edges_list)}')
+        # print('weighted_edges_list: ', weighted_edges_list[:10])
+        # DG = nx.DiGraph()
+        # DG.add_weighted_edges_from(weighted_edges_list)
+        # print('DG weights 0: ', DG['0'])
+        # print('DG weights 1: ', DG['1'])
+        # nodes2vecs = Node2Vec(DG, dimensions=args.dimvec, walk_length=args.walk_length, num_walks=args.num_walks, workers=args.workers)
+        nodes2vecs = Node2Vec(graph, dimensions=args.dimvec, walk_length=args.walk_length, num_walks=args.num_walks, workers=args.workers)
+        model = nodes2vecs.fit(window=args.windows, min_count=args.min_count, batch_words=args.batch_words)
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_c{args.dmax}.vec')
+        model.wv.save(EMBEDDING_FILENAME)
+        EMBEDDING_MODEL_FILENAME = os.path.join(args.data_home, args.dataset, f'node2vec_{args.dimvec}_c{args.dmax}.model')
+        model.save(EMBEDDING_MODEL_FILENAME)
+        
     if args.vecs:
         from gensim.models import KeyedVectors
         EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}.vec')
@@ -155,9 +204,38 @@ def main(args):
         feats = [wv[node] for node in nodes_list]
         scores = cluster(feats, labels_list)
         print(f"cluster scores: ")
+        score_list = []
         for n in scores:
             print(f"n={n}, nmi: {scores[n]: .4f}")
+            score_list.append(scores[n])
+        print(f"average of scores: {np.mean(score_list): .4f}")
             
+    if args.wvecs:
+        from gensim.models import KeyedVectors
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_w{args.dmax}.vec')
+        wv = KeyedVectors.load(EMBEDDING_FILENAME)
+        feats = [wv[node] for node in nodes_list]
+        scores = cluster(feats, labels_list)
+        print(f"cluster scores: ")
+        score_list = []
+        for n in scores:
+            print(f"n={n}, nmi: {scores[n]: .4f}")
+            score_list.append(scores[n])
+        print(f"average of scores: {np.mean(score_list): .4f}")
+        
+    if args.cvecs:
+        from gensim.models import KeyedVectors
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_c{args.dmax}.vec')
+        print(EMBEDDING_FILENAME)
+        wv = KeyedVectors.load(EMBEDDING_FILENAME)
+        feats = [wv[node] for node in nodes_list]
+        scores = cluster(feats, labels_list)
+        print(f"cluster scores: ")
+        score_list = []
+        for n in scores:
+            print(f"n={n}, nmi: {scores[n]: .4f}")
+            score_list.append(scores[n])
+        print(f"average of scores: {np.mean(score_list): .4f}")
     return
 
 
@@ -172,12 +250,17 @@ if __name__ == "__main__":
     parser.add_argument("--words", action="store_true")
     parser.add_argument("--feats", action="store_true")
     parser.add_argument("--vecs", action="store_true")
+    parser.add_argument("--wvecs", action="store_true")
+    parser.add_argument("--cvecs", action="store_true")
     parser.add_argument("--count", action="store_true")
     parser.add_argument("--extract", action="store_true")
     parser.add_argument("--spectral", action="store_true")
     parser.add_argument("--node2vec", action="store_true")
+    parser.add_argument("--node2wvec", action="store_true")
+    parser.add_argument("--node2cvec", action="store_true")
     parser.add_argument("--truncate", type=int, default=50)
     parser.add_argument("--iter_max", type=int, default=500)
+    parser.add_argument("--dmax", type=int, default=0)
     parser.add_argument("--dimvec", type=int, default=128)
     parser.add_argument("--walk_length", type=int, default=80)
     parser.add_argument("--num_walks", type=int, default=10)
