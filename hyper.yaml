@@ -96,6 +96,11 @@ facebook:
         n=30:  0.6994
         n=35:  0.7056
         n=40:  0.7108
+    vecs:
+        precision_K: 0.1312
+    cvecs:
+        precision_K: 0.1386
+        precision_K_2: 0.1384
         
 email:
     spectral:

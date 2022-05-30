@@ -135,17 +135,20 @@ def main(args):
         spectral = np.load(os.path.join(args.data_home, args.dataset, 'spectral.npy'))
         scores = spectral_cluster(spectral, labels_list)
         print(f"cluster scores: ")
+        score_list = []
         for n in scores:
             print(f"n={n}, nmi: {scores[n]: .4f}")
+            score_list.append(scores[n])
+        print(f"average of scores: {np.mean(score_list): .4f}")
             
     if args.node2vec:
         graph = nx.from_edgelist(edges)
         nx.set_node_attributes(graph, node2label, 'label')
         nodes2vecs = Node2Vec(graph, dimensions=args.dimvec, walk_length=args.walk_length, num_walks=args.num_walks, workers=args.workers)
         model = nodes2vecs.fit(window=args.windows, min_count=args.min_count, batch_words=args.batch_words)
-        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}.vec')
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_{args.dmax}.vec')
         model.wv.save(EMBEDDING_FILENAME)
-        EMBEDDING_MODEL_FILENAME = os.path.join(args.data_home, args.dataset, f'node2vec_{args.dimvec}.model')
+        EMBEDDING_MODEL_FILENAME = os.path.join(args.data_home, args.dataset, f'node2vec_{args.dimvec}_{args.dmax}.model')
         model.save(EMBEDDING_MODEL_FILENAME)
         
     if args.node2wvec:
@@ -199,7 +202,7 @@ def main(args):
         
     if args.vecs:
         from gensim.models import KeyedVectors
-        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}.vec')
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_{args.dmax}.vec')
         wv = KeyedVectors.load(EMBEDDING_FILENAME)
         feats = [wv[node] for node in nodes_list]
         scores = cluster(feats, labels_list)
