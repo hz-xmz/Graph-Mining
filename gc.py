@@ -205,7 +205,7 @@ def main(args):
         EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_{args.dmax}.vec')
         wv = KeyedVectors.load(EMBEDDING_FILENAME)
         feats = [wv[node] for node in nodes_list]
-        scores = cluster(feats, labels_list)
+        scores = cluster(feats, labels_list, n_cluster=args.c_list)
         print(f"cluster scores: ")
         score_list = []
         for n in scores:
@@ -271,7 +271,7 @@ if __name__ == "__main__":
     parser.add_argument("--windows", type=int, default=10)
     parser.add_argument("--batch_words", type=int, default=10)
     parser.add_argument("--min_count", type=int, default=1)
-    parser.add_argument('-cl','--c_list', nargs='+', help='<Required> Set flag', type=float, default=[0.1, 1, 5, 10, 50, 100])
+    parser.add_argument('-cl','--c_list', nargs='+', help='<Required> Set flag', type=int, default=[0.1, 1, 5, 10, 50, 100])
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--path_save", type=str, default='models')
     parser.add_argument("--no_save", action="store_true")
