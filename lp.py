@@ -83,7 +83,6 @@ def link_pred(node2feat, edges_p, edges_n):
             scores_p.append(score)
         except Exception as e:
             pass
-            # print('exception: ', e)
     for edge in edges_n:
         try:
             x, y = edge
@@ -105,18 +104,34 @@ def precision_k(node2feat, edges_p, graph_train, K=100, ft=1):
         if x in node2feat and y in node2feat:
             edges_list.append(edge)
     graph = nx.from_edgelist(edges_list)
+    factor_decay = -0.1
+    print(f'factor_decay: {factor_decay}')
     for node in graph.nodes:
-        topk = node2feat.most_similar(node, topn=K*2)
-        if ft:
+        topk_4k = node2feat.most_similar(node, topn=max(K*4, 400))
+        topk = remove_known(node, graph_train, topk_4k)[:K*2]
+        assert len(topk) > K, f"len(topk) is smaller than K, len(topk)={len(topk)}"
+        if ft==1:
             knn = filt(node, graph_train, topk, K)
-        else:
+        elif ft==0:
             knn = set([item[0] for item in topk[:K]])
+        else:
+            knn = decay(node, graph_train, topk, K, factor=factor_decay)
         hit = 0
         for neighbor in graph.neighbors(node):
             if neighbor in knn:
                 hit += 1
         node2score[node] = hit/K
     return node2score
+
+def remove_known(source, graph, topk):
+    topk_new = []
+    for rank, item in enumerate(topk):
+        if item[0] in graph.adj[source]:
+            pass
+        else:
+            topk_new.append(item)
+    return topk_new
+
 
 def filt(source, graph, topk, K):
     fars = []
@@ -126,8 +141,10 @@ def filt(source, graph, topk, K):
             dist = nx.shortest_path_length(graph, source=source, target=item[0])
         except nx.exception.NetworkXNoPath:
             dist = 100
-        if dist > 2 and item[1]<0.9: # item[1]<0.9
-        # if dist > 2 and rank>10: # item[1]<0.9
+        # if dist == 1:
+        #     continue
+        assert dist > 1, f"dist is smaller than 1: {dist}, source={source}, target={item[0]}"
+        if dist > 2: # and item[1]<0.9: # item[1]<0.9
             fars.append(item[0])
         else:
             near.append(item[0])
@@ -135,6 +152,20 @@ def filt(source, graph, topk, K):
     for v in fars:
         near.append(v)
     return set(near[:K])
+
+def decay(source, graph, topk, K, factor=-10):
+    # print(f'np.exp(factor*dist): {np.exp(factor)}')
+    # print(topk[:10])
+    topk_new = []
+    for rank, item in enumerate(topk):
+        try:
+            dist = nx.shortest_path_length(graph, source=source, target=item[0])
+        except nx.exception.NetworkXNoPath:
+            dist = 100
+        topk_new.append((item[1]*np.exp(factor*(dist-1)), item[0]))
+    assert dist > 1, f"dist is smaller than 1: {dist}, source={source}, target={item[0]}"
+    topk_new = sorted(topk_new, reverse=True)
+    return set([item[1] for item in topk_new[:K]])
 
 def precision_k2(node2feat, edges_p, K=100):
     size = len(edges_p)
