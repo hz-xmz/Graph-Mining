@@ -62,6 +62,13 @@ citeseer:
         score_train:  0.9632
         score_test:  0.7330
         
+cora_ml:
+    vecs:
+        dimension: 128
+        c: 0.1
+        score_train: 0.8647
+        score_test: 0.8470
+        
 facebook:
     words:
         c: 1.0
@@ -89,6 +96,11 @@ facebook:
         n=30:  0.6994
         n=35:  0.7056
         n=40:  0.7108
+    vecs:
+        precision_K: 0.1312
+    cvecs:
+        precision_K: 0.1386
+        precision_K_2: 0.1384
         
 email:
     spectral:
@@ -110,4 +122,12 @@ email:
         n=30, nmi:  0.7146
         n=35, nmi:  0.7067
         n=40, nmi:  0.6978
-        
+    cvecs:
+        n=5, nmi:  0.3958
+        n=10, nmi:  0.5895
+        n=15, nmi:  0.6588
+        n=20, nmi:  0.6876
+        n=25, nmi:  0.7124
+        n=30, nmi:  0.6973
+        n=35, nmi:  0.7122
+        n=40, nmi:  0.7114

@@ -57,12 +57,13 @@ def cross_valid(features, labels, C_list=[0.1, 0.5, 1, 1.5, 2, 2.5, 5], iter_max
         clf = LogisticRegression(C=C, max_iter=iter_max)
         scores = cross_val_score(clf, features, labels, cv=5)
         score_ave = np.mean(scores)
+        print(f"C: {C:2.2f}, score_ave: {score_ave :.4f}")
         if score_ave > s_best:
             c_best = C
             s_best = score_ave
+            # print(f"c_best: {c_best:2.2f}, s_best: {s_best :.4f}")
             # lr_best = clf
-        print(f"C: {C:2.2f}, score_ave: {score_ave :.4f}")
-    print(f"c_best: {c_best:2.1f}, s_best: {s_best :.4f}")
+    print(f"c_best: {c_best:2.2f}, s_best: {s_best :.4f}")
     return c_best
 
 
@@ -86,7 +87,7 @@ def learn(features, labels, C_list=[0.1, 0.5, 1, 2, 5], iter_max=200, pca=False,
     print(f"index_train: {index_train.shape}, index_test: {index_test.shape}")
     
     if c_best is None:
-        c_best = cross_valid(features, labels, C_list, iter_max)
+        c_best = cross_valid(features[index_train], labels[index_train], C_list, iter_max)
     print("train and test")
     lr, score_train, score_test = lr_fit(features[index_train], labels[index_train], features[index_test], labels[index_test], C=c_best)
     # print('labels: ', labels[:10])
@@ -98,18 +99,29 @@ def learn(features, labels, C_list=[0.1, 0.5, 1, 2, 5], iter_max=200, pca=False,
     
 
 def main(args):
-    path = os.path.join(args.data_home, args.dataset, args.dataset)
-    edges, nodes = read_data(path)
-    print(f"edges.shape: {edges.shape}, nodes.shape: {nodes.shape}")
-    nodes_list = nodes[:, 0]
-    nodes_class = list(set(nodes[:, -1]))  # the order of the list is not the same every time
-    nodes_class = sorted(nodes_class)   # fix the order by sorting
-    print('nodes_class: ', nodes_class)
-    print(f"len(nodes_list): {len(nodes_list)}, len(nodes_class): {len(nodes_class)}")
-    class2label = {c:i for i,c in enumerate(nodes_class)}
-    print("class2label: ", class2label)
-    labels = np.array([class2label[c] for c in nodes[:, -1]])
-    np.save('labels_cora.npy', labels)
+    if args.dataset != 'crml':
+        path = os.path.join(args.data_home, args.dataset, args.dataset)
+        edges, nodes = read_data(path)
+        print(f"edges.shape: {edges.shape}, nodes.shape: {nodes.shape}")
+        nodes_list = nodes[:, 0]
+        nodes_class = list(set(nodes[:, -1]))  # the order of the list is not the same every time
+        nodes_class = sorted(nodes_class)   # fix the order by sorting
+        print('nodes_class: ', nodes_class)
+        print(f"len(nodes_list): {len(nodes_list)}, len(nodes_class): {len(nodes_class)}")
+        class2label = {c:i for i,c in enumerate(nodes_class)}
+        print("class2label: ", class2label)
+        labels = np.array([class2label[c] for c in nodes[:, -1]])
+    else:
+        path = os.path.join(args.data_home, args.dataset, 'cora_ml.npz')
+        crml = np.load(path)
+        edges = crml['edges_list']
+        edges = np.array([[str(e[0]), str(e[1])] for e in edges])
+        nodes = crml['nodes_list']
+        nodes_list = np.array([str(node) for node in nodes])
+        labels = crml['labels']
+        print(f"edges.shape: {edges.shape}, nodes.shape: {nodes.shape}")
+        print('edges: ', edges[:10])
+        print('nodes: ', nodes[:10])
     
     if args.count:
         onehots = nodes[:, 1: -1].astype('float64')
@@ -150,6 +162,53 @@ def main(args):
         model.wv.save(EMBEDDING_FILENAME)
         EMBEDDING_MODEL_FILENAME = os.path.join(args.data_home, args.dataset, f'node2vec_{args.dimvec}.model')
         model.save(EMBEDDING_MODEL_FILENAME)
+        
+    if args.node2wvec:
+        graph = nx.from_edgelist(edges)
+        weighted_edges_list = []
+        for e in graph.edges:
+            # d = min()
+            weighted_edges_list.append([e[1], e[0], min(graph.degree[e[0]], args.dmax)])
+            weighted_edges_list.append([e[0], e[1], min(graph.degree[e[1]], args.dmax)])
+            # if graph.degree[e[1]] > graph.degree[e[0]]:
+            #     weighted_edges_list.append([e[0], e[1], min(graph.degree[e[1]], args.dmax)])
+            #     weighted_edges_list.append([e[1], e[0], 1])
+            # else:
+            #     weighted_edges_list.append([e[1], e[0], min(graph.degree[e[0]], args.dmax)])
+            #     weighted_edges_list.append([e[0], e[1], 1])
+        print(f'len(weighted_edges_list): {len(weighted_edges_list)}')
+        print('weighted_edges_list: ', weighted_edges_list[:10])
+        DG = nx.DiGraph()
+        DG.add_weighted_edges_from(weighted_edges_list)
+        print('DG weights 0: ', DG['0'])
+        print('DG weights 1: ', DG['1'])
+        nodes2vecs = Node2Vec(DG, dimensions=args.dimvec, walk_length=args.walk_length, num_walks=args.num_walks, workers=args.workers)
+        model = nodes2vecs.fit(window=args.windows, min_count=args.min_count, batch_words=args.batch_words)
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_w{args.dmax}.vec')
+        model.wv.save(EMBEDDING_FILENAME)
+        EMBEDDING_MODEL_FILENAME = os.path.join(args.data_home, args.dataset, f'node2vec_{args.dimvec}_w{args.dmax}.model')
+        model.save(EMBEDDING_MODEL_FILENAME)
+        
+    if args.node2cvec:
+        graph = nx.from_edgelist(edges)
+        centrality = nx.eigenvector_centrality(graph)
+        weighted_edges_list = []
+        for e in graph.edges:
+            weighted_edges_list.append([e[1], e[0], 1+2*centrality[e[0]]])
+            weighted_edges_list.append([e[0], e[1], 1+2*centrality[e[1]]])
+        print(f'len(weighted_edges_list): {len(weighted_edges_list)}')
+        print('weighted_edges_list: ', weighted_edges_list[:10])
+        DG = nx.DiGraph()
+        DG.add_weighted_edges_from(weighted_edges_list)
+        print('DG weights 0: ', DG[str(nodes_list[0])])
+        print('DG weights 1: ', DG[str(nodes_list[1])])
+        nodes2vecs = Node2Vec(DG, dimensions=args.dimvec, walk_length=args.walk_length, num_walks=args.num_walks, workers=args.workers)
+        model = nodes2vecs.fit(window=args.windows, min_count=args.min_count, batch_words=args.batch_words)
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_c{args.dmax}.vec')
+        model.wv.save(EMBEDDING_FILENAME)
+        EMBEDDING_MODEL_FILENAME = os.path.join(args.data_home, args.dataset, f'node2vec_{args.dimvec}_c{args.dmax}.model')
+        model.save(EMBEDDING_MODEL_FILENAME)
+        
     if args.vecs:
         from gensim.models import KeyedVectors
         EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}.vec')
@@ -159,6 +218,28 @@ def main(args):
         model = learn(nodes2vecs, labels, C_list=args.c_list, iter_max=args.iter_max, c_best=args.c_best)
         from joblib import dump
         path_save = os.path.join(args.data_home, args.dataset, 'vecs.joblib')
+        dump(model, path_save)
+        
+    if args.wvecs:
+        from gensim.models import KeyedVectors
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_w{args.dmax}.vec')
+        wv = KeyedVectors.load(EMBEDDING_FILENAME)
+        nodes2vecs = np.array([wv[node] for node in nodes_list])
+        print(f"nodes2vecs.shape: {nodes2vecs.shape}, labels.shape: {labels.shape}")
+        model = learn(nodes2vecs, labels, C_list=args.c_list, iter_max=args.iter_max, c_best=args.c_best)
+        from joblib import dump
+        path_save = os.path.join(args.data_home, args.dataset, 'vecs_w.joblib')
+        dump(model, path_save)
+        
+    if args.cvecs:
+        from gensim.models import KeyedVectors
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_c{args.dmax}.vec')
+        wv = KeyedVectors.load(EMBEDDING_FILENAME)
+        nodes2vecs = np.array([wv[node] for node in nodes_list])
+        print(f"nodes2vecs.shape: {nodes2vecs.shape}, labels.shape: {labels.shape}")
+        model = learn(nodes2vecs, labels, C_list=args.c_list, iter_max=args.iter_max, c_best=args.c_best)
+        from joblib import dump
+        path_save = os.path.join(args.data_home, args.dataset, 'vecs_c.joblib')
         dump(model, path_save)
     
     if args.es:
@@ -252,13 +333,18 @@ if __name__ == "__main__":
     parser.add_argument("--words", action="store_true")
     parser.add_argument("--feats", action="store_true")
     parser.add_argument("--vecs", action="store_true")
+    parser.add_argument("--wvecs", action="store_true")
+    parser.add_argument("--cvecs", action="store_true")
     parser.add_argument("--es", action="store_true")
     parser.add_argument("--es2", action="store_true")
     parser.add_argument("--count", action="store_true")
     parser.add_argument("--extract", action="store_true")
     parser.add_argument("--node2vec", action="store_true")
+    parser.add_argument("--node2wvec", action="store_true")
+    parser.add_argument("--node2cvec", action="store_true")
     parser.add_argument("--pca", action="store_true")
     parser.add_argument("--truncate", type=int, default=512)
+    parser.add_argument("--dmax", type=int, default=3)
     parser.add_argument("--iter_max", type=int, default=500)
     parser.add_argument("--dimvec", type=int, default=128)
     parser.add_argument("--walk_length", type=int, default=80)

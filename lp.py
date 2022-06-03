@@ -83,7 +83,6 @@ def link_pred(node2feat, edges_p, edges_n):
             scores_p.append(score)
         except Exception as e:
             pass
-            # print('exception: ', e)
     for edge in edges_n:
         try:
             x, y = edge
@@ -94,6 +93,117 @@ def link_pred(node2feat, edges_p, edges_n):
             pass
             # print('exception: ', e)
     return scores_p, scores_n
+
+
+def precision_k(node2feat, edges_p, graph_train, K=100, ft=1):
+    size = len(edges_p)
+    node2score = {} 
+    edges_list = []
+    for edge in edges_p:
+        x, y = edge
+        if x in node2feat and y in node2feat:
+            edges_list.append(edge)
+    graph = nx.from_edgelist(edges_list)
+    factor_decay = -0.1
+    print(f'factor_decay: {factor_decay}')
+    for node in graph.nodes:
+        topk_4k = node2feat.most_similar(node, topn=max(K*4, 400))
+        topk = remove_known(node, graph_train, topk_4k)[:K*2]
+        assert len(topk) > K, f"len(topk) is smaller than K, len(topk)={len(topk)}"
+        if ft==1:
+            knn = filt(node, graph_train, topk, K)
+        elif ft==0:
+            knn = set([item[0] for item in topk[:K]])
+        else:
+            knn = decay(node, graph_train, topk, K, factor=factor_decay)
+        hit = 0
+        for neighbor in graph.neighbors(node):
+            if neighbor in knn:
+                hit += 1
+        node2score[node] = hit/K
+    return node2score
+
+def remove_known(source, graph, topk):
+    topk_new = []
+    for rank, item in enumerate(topk):
+        if item[0] in graph.adj[source]:
+            pass
+        else:
+            topk_new.append(item)
+    return topk_new
+
+
+def filt(source, graph, topk, K):
+    fars = []
+    near = []
+    for rank, item in enumerate(topk):
+        try:
+            dist = nx.shortest_path_length(graph, source=source, target=item[0])
+        except nx.exception.NetworkXNoPath:
+            dist = 100
+        # if dist == 1:
+        #     continue
+        assert dist > 1, f"dist is smaller than 1: {dist}, source={source}, target={item[0]}"
+        if dist > 2: # and item[1]<0.9: # item[1]<0.9
+            fars.append(item[0])
+        else:
+            near.append(item[0])
+    # print(f'len(fars): {len(fars)}')
+    for v in fars:
+        near.append(v)
+    return set(near[:K])
+
+def decay(source, graph, topk, K, factor=-10):
+    # print(f'np.exp(factor*dist): {np.exp(factor)}')
+    # print(topk[:10])
+    topk_new = []
+    for rank, item in enumerate(topk):
+        try:
+            dist = nx.shortest_path_length(graph, source=source, target=item[0])
+        except nx.exception.NetworkXNoPath:
+            dist = 100
+        topk_new.append((item[1]*np.exp(factor*(dist-1)), item[0]))
+    assert dist > 1, f"dist is smaller than 1: {dist}, source={source}, target={item[0]}"
+    topk_new = sorted(topk_new, reverse=True)
+    return set([item[1] for item in topk_new[:K]])
+
+def precision_k2(node2feat, edges_p, K=100):
+    size = len(edges_p)
+    node2score = {} 
+    edges_list = []
+    for edge in edges_p:
+        x, y = edge
+        if x in node2feat and y in node2feat:
+            edges_list.append(edge)
+    graph = nx.from_edgelist(edges_list)
+    for node in graph.nodes:
+        topk = node2feat.most_similar(node, topn=K*2)
+        knn = set([item[0] for item in topk])
+        hit = 0
+        for neighbor in graph.neighbors(node):
+            if neighbor in knn:
+                hit += 1
+        node2score[node] = hit/K
+    return node2score
+
+
+def random_guess(node2feat, edges_p, K=100):
+    keys = [key for key in node2feat.key_to_index]
+    node2score = {} 
+    edges_list = []
+    for edge in edges_p:
+        x, y = edge
+        if x in node2feat and y in node2feat:
+            edges_list.append(edge)
+    graph = nx.from_edgelist(edges_list)
+    for node in graph.nodes:
+        knn = set(np.random.choice(keys, size=K))
+        hit = 0
+        for neighbor in graph.neighbors(node):
+            if neighbor in knn:
+                hit += 1
+        node2score[node] = hit/K
+    return node2score
     
 
 def main(args):
@@ -156,14 +266,34 @@ def main(args):
     if args.node2vec:
         graph = nx.from_edgelist(edges_train)
         nodes2vecs = Node2Vec(graph, dimensions=args.dimvec, walk_length=args.walk_length, num_walks=args.num_walks, workers=args.workers)
-        model = nodes2vecs.fit(window=5, min_count=1, batch_words=4)
-        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}.vec')
+        model = nodes2vecs.fit(window=args.windows, min_count=args.min_count, batch_words=args.batch_words)
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_{args.dmax}.vec')
         model.wv.save(EMBEDDING_FILENAME)
-        EMBEDDING_MODEL_FILENAME = os.path.join(args.data_home, args.dataset, f'node2vec_{args.dimvec}.model')
+        EMBEDDING_MODEL_FILENAME = os.path.join(args.data_home, args.dataset, f'node2vec_{args.dimvec}_{args.dmax}.model')
         model.save(EMBEDDING_MODEL_FILENAME)
+        
+    if args.node2cvec:
+        graph = nx.from_edgelist(edges_train)
+        centrality = nx.eigenvector_centrality(graph)
+        jc = nx.jaccard_coefficient(graph, edges_train)
+        idx = 0
+        for u, v, p in jc:
+            if idx < 10:
+                print(f"p*args.dmax: {p*args.dmax}")
+            # graph[u][v]['weight'] = 1 + p*args.dmax
+            # graph[v][u]['weight'] = 1 + p*args.dmax
+            idx += 1
+        print(f"idx: {idx}")
+        nodes2vecs = Node2Vec(graph, dimensions=args.dimvec, walk_length=args.walk_length, num_walks=args.num_walks, workers=args.workers, p=1, q=1)
+        model = nodes2vecs.fit(window=args.windows, min_count=args.min_count, batch_words=args.batch_words)
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_c{args.dmax}.vec')
+        model.wv.save(EMBEDDING_FILENAME)
+        EMBEDDING_MODEL_FILENAME = os.path.join(args.data_home, args.dataset, f'node2vec_{args.dimvec}_c{args.dmax}.model')
+        model.save(EMBEDDING_MODEL_FILENAME)
+        
     if args.vecs:
         from gensim.models import KeyedVectors
-        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}.vec')
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_{args.dmax}.vec')
         wv = KeyedVectors.load(EMBEDDING_FILENAME)
         scores_p, scores_n = link_pred(wv, edges_test, edges_nega)
         print(f"len(scores_p): {len(scores_p)}, len(scores_n): {len(scores_n)}")
@@ -172,6 +302,37 @@ def main(args):
         from sklearn.metrics import roc_auc_score
         auc = roc_auc_score(label_true+label_false, scores_p+scores_n)
         print(f"auc: {auc: .4f}")
+    
+    if args.vecspk:
+        from gensim.models import KeyedVectors
+        graph = nx.from_edgelist(edges_train)
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}.vec')
+        wv = KeyedVectors.load(EMBEDDING_FILENAME)
+        node2score = precision_k(wv, edges_test, graph, K=args.K, ft=args.filt)
+        scores = [node2score[v] for v in node2score]
+        print(f"len(node2score): {len(node2score)}")
+        print(f"precision@K: {np.mean(scores): .4f}")
+        
+    if args.guess:
+        from gensim.models import KeyedVectors
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}.vec')
+        wv = KeyedVectors.load(EMBEDDING_FILENAME)
+        node2score = random_guess(wv, edges_test)
+        scores = [node2score[v] for v in node2score]
+        print(f"len(node2score): {len(node2score)}")
+        print(f"precision@K: {np.mean(scores): .4f}")
+        
+        
+    if args.cvecspk:
+        from gensim.models import KeyedVectors
+        graph = nx.from_edgelist(edges_train)
+        EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_c{args.dmax}.vec')
+        print(f"EMBEDDING_FILENAME: {EMBEDDING_FILENAME}")
+        wv = KeyedVectors.load(EMBEDDING_FILENAME)
+        node2score = precision_k(wv, edges_test, graph, K=args.K, ft=args.filt)
+        scores = [node2score[v] for v in node2score]
+        print(f"len(node2score): {len(node2score)}")
+        print(f"precision@K: {np.mean(scores): .4f}")
         
     if args.jaccard:
         graph = nx.from_edgelist(edges_train)
@@ -209,13 +370,20 @@ if __name__ == "__main__":
     parser.add_argument("--scratch", action="store_true")
     parser.add_argument("--words", action="store_true")
     parser.add_argument("--feats", action="store_true")
+    parser.add_argument("--K", type=int, default=100)
+    parser.add_argument("--filt", type=int, default=1)
     parser.add_argument("--vecs", action="store_true")
+    parser.add_argument("--cvecspk", action="store_true")
+    parser.add_argument("--vecspk", action="store_true")
     parser.add_argument("--jaccard", action="store_true")
+    parser.add_argument("--guess", action="store_true")
     parser.add_argument("--count", action="store_true")
     parser.add_argument("--extract", action="store_true")
     parser.add_argument("--node2vec", action="store_true")
+    parser.add_argument("--node2cvec", action="store_true")
     parser.add_argument("--truncate", type=int, default=1024)
     parser.add_argument("--iter_max", type=int, default=500)
+    parser.add_argument("--dmax", type=int, default=2)
     parser.add_argument("--dimvec", type=int, default=128)
     parser.add_argument("--walk_length", type=int, default=80)
     parser.add_argument("--num_walks", type=int, default=10)
@@ -230,6 +398,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(f"args: {args}")
     main(args)
-
-
-
