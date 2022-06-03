@@ -71,17 +71,45 @@ def link_pred(node2feat, edges_p, edges_n):
     return scores_p, scores_n
 
 
-def cluster(feats, labels, n_cluster = [5, 10, 15, 20, 25, 30, 35, 40]):
+def cluster(feats, labels, graph, post=False, n_cluster = [5, 10, 15, 20, 25, 30, 35, 40]):
     from sklearn.cluster import KMeans
     from sklearn.metrics.cluster import normalized_mutual_info_score as nmi
     n2scores = {}
     for n in n_cluster:
         kmeans = KMeans(n_clusters=n, random_state=2)
         preds = kmeans.fit_predict(feats)
+        if post:
+            preds = post_process(preds, graph)
         score_nmi = nmi(preds, labels)
         n2scores[n] = score_nmi
     return n2scores
 
+
+def post_process(pred, graph):
+    pred_post = [p for p in pred]
+    for i, node in enumerate(graph.nodes):
+        clst = []
+        n = str(i)
+        for v in graph.adj[n]:
+            clst.append(pred[int(v)])
+        most, count = most_frequent(clst)
+        if most != pred[i]:
+            pred_post[i] =  most
+    return pred_post
+
+
+def most_frequent(List):
+    counter = 0
+    num = List[0]
+     
+    for i in List:
+        curr_frequency = List.count(i)
+        if(curr_frequency> counter):
+            counter = curr_frequency
+            num = i
+ 
+    return num, counter
+    
 def spectral_cluster(spectral, labels, n_cluster = [5, 10, 15, 20, 25, 30, 35, 40]):
     from sklearn.cluster import KMeans
     from sklearn.metrics.cluster import normalized_mutual_info_score as nmi
@@ -133,7 +161,7 @@ def main(args):
     if args.feats:
         from sklearn.preprocessing import normalize
         spectral = np.load(os.path.join(args.data_home, args.dataset, 'spectral.npy'))
-        scores = spectral_cluster(spectral, labels_list)
+        scores = spectral_cluster(spectral, labels_list, n_cluster=args.c_list)
         print(f"cluster scores: ")
         score_list = []
         for n in scores:
@@ -205,7 +233,8 @@ def main(args):
         EMBEDDING_FILENAME = os.path.join(args.data_home, args.dataset, f'nodes_{args.dimvec}_{args.dmax}.vec')
         wv = KeyedVectors.load(EMBEDDING_FILENAME)
         feats = [wv[node] for node in nodes_list]
-        scores = cluster(feats, labels_list, n_cluster=args.c_list)
+        graph = nx.from_edgelist(edges)
+        scores = cluster(feats, labels_list, graph, post=args.post, n_cluster=args.c_list)
         print(f"cluster scores: ")
         score_list = []
         for n in scores:
@@ -261,6 +290,7 @@ if __name__ == "__main__":
     parser.add_argument("--node2vec", action="store_true")
     parser.add_argument("--node2wvec", action="store_true")
     parser.add_argument("--node2cvec", action="store_true")
+    parser.add_argument("--post", action="store_true")
     parser.add_argument("--truncate", type=int, default=50)
     parser.add_argument("--iter_max", type=int, default=500)
     parser.add_argument("--dmax", type=int, default=0)
@@ -271,7 +301,7 @@ if __name__ == "__main__":
     parser.add_argument("--windows", type=int, default=10)
     parser.add_argument("--batch_words", type=int, default=10)
     parser.add_argument("--min_count", type=int, default=1)
-    parser.add_argument('-cl','--c_list', nargs='+', help='<Required> Set flag', type=int, default=[0.1, 1, 5, 10, 50, 100])
+    parser.add_argument('-cl','--c_list', nargs='+', help='<Required> Set flag', type=int, default=[2, 3, 4, 5, 6, 7, 8])
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--path_save", type=str, default='models')
     parser.add_argument("--no_save", action="store_true")
