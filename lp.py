@@ -204,7 +204,42 @@ def random_guess(node2feat, edges_p, K=100):
                 hit += 1
         node2score[node] = hit/K
     return node2score
-    
+
+
+def get_neighbors(graph, source):
+    nbrs = set(graph.adj[source])
+    nbrs_2 = set()
+    for nb in nbrs:
+        for n in graph.adj[nb]:
+            if n not in nbrs:
+                nbrs_2.add(n)
+    return [(source, nb_2) for nb_2 in nbrs_2] if nbrs_2 else []
+
+
+def precision_k_jccard(scores, edges_p, graph_train, K=100, ft=1):
+    size = len(edges_p)
+    node2score = {} 
+    edges_list = []
+    graph = nx.from_edgelist(edges_p)
+    factor_decay = -0.1
+    print(f'factor_decay: {factor_decay}')
+    for node in graph.nodes:
+        topk = sorted(scores[node], reverse=True)[:K]
+        knn = set([item[0] for item in topk[:K]])
+        # assert len(topk) > K, f"len(topk) is smaller than K, len(topk)={len(topk)}"
+        # if ft==1:
+        #     knn = filt(node, graph_train, topk, K)
+        # elif ft==0:
+        #     knn = set([item[0] for item in topk[:K]])
+        # else:
+        #     knn = decay(node, graph_train, topk, K, factor=factor_decay)
+        hit = 0
+        for neighbor in graph.neighbors(node):
+            if neighbor in knn:
+                hit += 1
+        node2score[node] = hit/K
+    return node2score
+
 
 def main(args):
     # path = os.path.join(args.data_home, args.dataset, args.dataset)
@@ -357,6 +392,41 @@ def main(args):
         auc = roc_auc_score(label_true+label_false, scores_p+scores_n)
         print(f"auc: {auc: .4f}")
         
+    if args.jaccardpk:
+        graph = nx.from_edgelist(edges_train)
+        edges_test_exist = []
+        nodes_exist = set()
+        for edge in edges_test:
+            if graph.has_node(edge[0]) and graph.has_node(edge[1]):
+                edges_test_exist.append(edge)
+                nodes_exist.add(edge[0])
+                nodes_exist.add(edge[1])
+        print(f"len(edges_test): {len(edges_test)}, len(edges_test_exist): {len(edges_test_exist)}")
+        print(f"len(nodes_exist): {len(nodes_exist)}")
+        nodes_test = list(nodes_exist)
+        source2score = {}
+        for i, source in enumerate(nodes_test):
+            pairs = get_neighbors(graph, source)
+            if len(pairs) > 1000:
+                print(f"i={i}, source={source}, len(pairs) = {len(pairs)}")
+            jaccard_p = nx.jaccard_coefficient(graph, pairs)
+            scores_p = [(v, p) for u, v, p in jaccard_p]
+            source2score[source] = scores_p
+            if i%100 == 0:
+                print(f"i={i}, len(source2score)={len(source2score)}")
+        import json
+        with open('source2score_jccard.json', 'w') as f:
+            json.dump(source2score, f)
+        # import json
+        # f = open('source2score_jccard.json')
+        # source2score = json.load(f)
+        # f.close()
+        node2score = precision_k_jccard(source2score,  edges_test_exist, graph, K=args.K, ft=1)
+        print(f"len(source2score): {len(source2score)}")
+        scores = [node2score[v] for v in node2score]
+        print(f"len(node2score): {len(node2score)}")
+        print(f"precision@K: {np.mean(scores): .4f}")
+        
     return
 
 
@@ -376,6 +446,7 @@ if __name__ == "__main__":
     parser.add_argument("--cvecspk", action="store_true")
     parser.add_argument("--vecspk", action="store_true")
     parser.add_argument("--jaccard", action="store_true")
+    parser.add_argument("--jaccardpk", action="store_true")
     parser.add_argument("--guess", action="store_true")
     parser.add_argument("--count", action="store_true")
     parser.add_argument("--extract", action="store_true")
