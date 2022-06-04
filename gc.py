@@ -71,7 +71,7 @@ def link_pred(node2feat, edges_p, edges_n):
     return scores_p, scores_n
 
 
-def cluster(feats, labels, graph, post=False, n_cluster = [5, 10, 15, 20, 25, 30, 35, 40]):
+def cluster(feats, labels, graph, nodes, post=False, n_cluster = [5, 10, 15, 20, 25, 30, 35, 40]):
     from sklearn.cluster import KMeans
     from sklearn.metrics.cluster import normalized_mutual_info_score as nmi
     n2scores = {}
@@ -79,17 +79,16 @@ def cluster(feats, labels, graph, post=False, n_cluster = [5, 10, 15, 20, 25, 30
         kmeans = KMeans(n_clusters=n, random_state=2)
         preds = kmeans.fit_predict(feats)
         if post:
-            preds = post_process(preds, graph)
+            preds = post_process(preds, graph, nodes)
         score_nmi = nmi(preds, labels)
         n2scores[n] = score_nmi
     return n2scores
 
 
-def post_process(pred, graph):
+def post_process(pred, graph, nodes):
     pred_post = [p for p in pred]
-    for i, node in enumerate(graph.nodes):
+    for i, n in enumerate(nodes):
         clst = []
-        n = str(i)
         for v in graph.adj[n]:
             clst.append(pred[int(v)])
         most, count = most_frequent(clst)
@@ -116,7 +115,7 @@ def spectral_cluster(spectral, labels, n_cluster = [5, 10, 15, 20, 25, 30, 35, 4
     from sklearn.preprocessing import normalize
     n2scores = {}
     for n in n_cluster:
-        feats = normalize(spectral[:, :50])
+        feats = normalize(spectral[:, :5])
         print(f"feats.shape: {feats.shape}")
         kmeans = KMeans(n_clusters=n, random_state=2)
         preds = kmeans.fit_predict(feats)
@@ -234,7 +233,7 @@ def main(args):
         wv = KeyedVectors.load(EMBEDDING_FILENAME)
         feats = [wv[node] for node in nodes_list]
         graph = nx.from_edgelist(edges)
-        scores = cluster(feats, labels_list, graph, post=args.post, n_cluster=args.c_list)
+        scores = cluster(feats, labels_list, graph, nodes_list, post=args.post, n_cluster=args.c_list)
         print(f"cluster scores: ")
         score_list = []
         for n in scores:
